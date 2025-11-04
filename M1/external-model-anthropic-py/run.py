@@ -2,12 +2,11 @@ import os
 import asyncio
 from dotenv import load_dotenv
 from anthropic import Anthropic, AsyncClient
+from transformers import AutoTokenizer
 
 load_dotenv()
 
-# print(f"env var \"ANTHROPIC_API_KEY\": { os.getenv('ANTHROPIC_API_KEY', '')[:4] + '...' + os.getenv('ANTHROPIC_API_KEY', '')[-4:] if len(os.getenv('ANTHROPIC_API_KEY', '')) > 0 else 'NOT SET' }")
-# if not os.getenv('ANTHROPIC_API_KEY'):
-#     raise ValueError("ANTHROPIC_API_KEY environment variable is not set. Please set it to your OpenAI API key.")
+tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
 
 
 client = AsyncClient(
@@ -31,8 +30,13 @@ async def send_message(content: str):
 
 async def main():
     PROMPT = 'Write a super short software joke in Polish.'
+    tokens = tokenizer.encode(PROMPT)
+    print(tokens)
     response = await send_message(PROMPT)
-    print(response.content[0].text)
+    text = response.content[0].text
+    print(text)
+    tokens = tokenizer.encode(text)
+    print(tokens)
 
 if __name__ == '__main__':
     asyncio.run(main())
