@@ -5,13 +5,18 @@ from anthropic import Anthropic, AsyncClient
 
 load_dotenv()
 
-print(f"env var \"ANTHROPIC_API_KEY\": { os.getenv('ANTHROPIC_API_KEY', '')[:4] + '...' + os.getenv('ANTHROPIC_API_KEY', '')[-4:] if len(os.getenv('ANTHROPIC_API_KEY', '')) > 0 else 'NOT SET' }")
-if not os.getenv('ANTHROPIC_API_KEY'):
-    raise ValueError("ANTHROPIC_API_KEY environment variable is not set. Please set it to your OpenAI API key.")
+# print(f"env var \"ANTHROPIC_API_KEY\": { os.getenv('ANTHROPIC_API_KEY', '')[:4] + '...' + os.getenv('ANTHROPIC_API_KEY', '')[-4:] if len(os.getenv('ANTHROPIC_API_KEY', '')) > 0 else 'NOT SET' }")
+# if not os.getenv('ANTHROPIC_API_KEY'):
+#     raise ValueError("ANTHROPIC_API_KEY environment variable is not set. Please set it to your OpenAI API key.")
 
 
-client = AsyncClient(api_key=os.getenv('ANTHROPIC_API_KEY'))
-MODEL = 'claude-3-5-haiku-latest'
+client = AsyncClient(
+    # api_key=os.getenv('ANTHROPIC_API_KEY')
+    base_url=os.getenv('ANTHROPIC_BASE_URL'),
+    auth_token=os.getenv('ANTHROPIC_AUTH_TOKEN'),
+
+)
+MODEL = 'claude-haiku-4-5'
 # MODEL = 'claude-haiku-4-5'
 # MODEL = 'claude-opus-4-1'
 # MODEL = 'claude-sonnet-4-5'

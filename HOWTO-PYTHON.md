@@ -11,6 +11,13 @@ Należy wejść w każdy folder pod-projektowy. Rozpoznasz go (jednocześnie):
 Instalowanie zależności: `pip install -r requirements.txt`
 
 TL;DR; Komendy:
+UV 
+```shell
+uv init
+uv venv
+source .venv/bin/activate
+uv add -r requirements.txt
+```
 
 ```shell
 # stwórz virtualenv
