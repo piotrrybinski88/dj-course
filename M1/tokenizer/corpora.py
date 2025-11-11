@@ -4,12 +4,14 @@ from pathlib import Path
 CORPORA_DIRS = {
     "NKJP": Path("../korpus-nkjp/output"),
     "WOLNELEKTURY": Path("../korpus-wolnelektury"),
+    "SPICHLERZ": Path("../korpus-spichlerz"),
 }
 
 CORPORA_FILES = {
     "NKJP": list(CORPORA_DIRS["NKJP"].glob("*.txt")),
     "WOLNELEKTURY": list(CORPORA_DIRS["WOLNELEKTURY"].glob("*.txt")),
     "PAN_TADEUSZ": list(CORPORA_DIRS["WOLNELEKTURY"].glob("pan-tadeusz-ksiega-*.txt")),
+    "SPICHLERZ": list(CORPORA_DIRS["SPICHLERZ"].glob("*.txt")),
 }
 
 CORPORA_FILES["ALL"] = [
@@ -29,4 +31,3 @@ if __name__ == "__main__":
     print("\nget_corpus_file:")
     print("nkjp *", len(get_corpus_file("NKJP", "*.txt")))
     print("nkjp krzyzacy", len(get_corpus_file("WOLNELEKTURY", "krzyzacy-*.txt")))
-    

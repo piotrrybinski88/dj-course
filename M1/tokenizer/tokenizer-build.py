@@ -4,7 +4,9 @@ from tokenizers.trainers import BpeTrainer
 from tokenizers.pre_tokenizers import Whitespace
 from corpora import get_corpus_file
 
-TOKENIZER_OUTPUT_FILE = "tokenizers/custom_bpe_tokenizer.json"
+# TODO change TOKENIZER_OUTPUT_FILE and NKJP to parameter
+TOKENIZER_OUTPUT_FILE = "tokenizers/tokenizer-all-corpora.json"
+list_of_corpus = ["NKJP", "WOLNELEKTURY", "SPICHLERZ"]
 
 # 1. Initialize the Tokenizer (BPE model)
 tokenizer = Tokenizer(BPE(unk_token="[UNK]")) 
@@ -19,7 +21,9 @@ trainer = BpeTrainer(
     min_frequency=2
 )
 
-FILES = [str(f) for f in get_corpus_file("WOLNELEKTURY", "latarnik.txt")]
+FILES = [str(f) for corpus_name in list_of_corpus for f in get_corpus_file(corpus_name, "*.txt")]
+
+
 print(FILES)
 
 # 4. Train the Tokenizer

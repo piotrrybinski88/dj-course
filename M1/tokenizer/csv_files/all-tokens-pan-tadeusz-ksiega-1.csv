@@ -1,0 +1,12 @@
+tokenizer_name,num_of_tokens
+bielik-v1,20481
+bielik-v2,20480
+deep-seek-v3,16717
+bielik-v3,13177
+all-corpora-16k,11181
+nkjp,11066
+nkjp-50k,10609
+all-corpora,10232
+wolnelektury,10045
+pan-tadeusz,9985
+all-corpora-50k,9725
