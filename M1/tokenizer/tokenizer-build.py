@@ -5,8 +5,8 @@ from tokenizers.pre_tokenizers import Whitespace
 from corpora import get_corpus_file
 
 # TODO change TOKENIZER_OUTPUT_FILE and NKJP to parameter
-TOKENIZER_OUTPUT_FILE = "tokenizers/tokenizer-all-corpora.json"
-list_of_corpus = ["NKJP", "WOLNELEKTURY", "SPICHLERZ"]
+TOKENIZER_OUTPUT_FILE = "tokenizers/tokenizer-all-corpora-200k.json"
+list_of_corpus = ["NKJP", "WOLNELEKTURY"]
 
 # 1. Initialize the Tokenizer (BPE model)
 tokenizer = Tokenizer(BPE(unk_token="[UNK]")) 
@@ -17,7 +17,7 @@ tokenizer.pre_tokenizer = Whitespace()
 # 3. Set the Trainer
 trainer = BpeTrainer(
     special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"],
-    vocab_size=32000,
+    vocab_size=200000,
     min_frequency=2
 )
 

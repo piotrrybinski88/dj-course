@@ -1,17 +1,20 @@
 """
-Word2Vec CBOW Embedding Training Pipeline
+Word2Vec CBOW Embedding Training Pipeline with Grid Search Optimization
 
 This module provides a refactored, Pythonic approach to training Word2Vec CBOW embeddings
-using tokenized Polish language corpora.
+using tokenized Polish language corpora, with hyperparameter tuning via grid search.
 """
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from itertools import product
+from pathlib import Path
 
 from typing import Tuple, List, Optional, Dict
 
 import numpy as np
+import pandas as pd
 from gensim.models import Word2Vec
 from tokenizers import Tokenizer
 
@@ -40,18 +43,234 @@ class EmbeddingConfig:
     corpus_type: str = "ALL"  # Options: "WOLNELEKTURY", "PAN_TADEUSZ", "ALL"
 
     # Model hyperparameters
-    vector_size: int = 100
-    window: int = 3
-    min_count: int = 5
+    vector_size: int = 30
+    window: int = 7
+    min_count: int = 2
     workers: int = 4
-    epochs: int = 20
-    sample: float = 1e-2
+    epochs: int = 80
+    sample: float = 1e-1
     sg: int = 0  # 0 for CBOW, 1 for Skip-gram
 
     @property
     def corpus_files(self) -> List[str]:
         """Get corpus files based on corpus type."""
         return CORPORA_FILES[self.corpus_type]
+
+
+@dataclass
+class HyperparameterGrid:
+    """Configuration for grid search hyperparameter tuning."""
+
+    vector_size: List[int] = field(default_factory=lambda: [30, 40])
+    window: List[int] = field(default_factory=lambda: [5, 7])
+    min_count: List[int] = field(default_factory=lambda: [2, 4])
+    epochs: List[int] = field(default_factory=lambda: [80, 90])
+
+    # Fixed parameters
+    workers: int = 4
+    sample: float = 1e-1
+    sg: int = 0  # 0 for CBOW
+
+    def get_combinations(self) -> List[Dict]:
+        """Generate all hyperparameter combinations from grid."""
+        param_names = ['vector_size', 'window', 'min_count', 'epochs']
+        param_values = [
+            self.vector_size,
+            self.window,
+            self.min_count,
+            self.epochs
+        ]
+
+        combinations = []
+        for combo in product(*param_values):
+            combinations.append({
+                param_names[i]: combo[i] for i in range(len(param_names))
+            })
+
+        logger.info(f"Generated {len(combinations)} hyperparameter combinations")
+        return combinations
+
+
+@dataclass
+class GridSearchResult:
+    """Store result of a single grid search model training."""
+
+    hyperparams: Dict
+    model: Word2Vec
+    vocab_size: int
+    avg_vector_norm: float
+    training_time: float
+
+    def to_dict(self) -> Dict:
+        """Convert to dictionary for DataFrame storage."""
+        return {
+            **self.hyperparams,
+            'vocab_size': self.vocab_size,
+            'avg_vector_norm': self.avg_vector_norm,
+            'training_time': self.training_time,
+        }
+
+
+# ============================================================================
+# Grid Search and Model Evaluation
+# ============================================================================
+
+import time
+
+
+class GridSearchCV:
+    """Grid Search with Cross-Validation for Word2Vec hyperparameter tuning."""
+
+    def __init__(
+        self,
+        param_grid: HyperparameterGrid,
+        base_config: EmbeddingConfig,
+        cv_folds: int = 3
+    ):
+        """
+        Initialize GridSearchCV.
+
+        Args:
+            param_grid: HyperparameterGrid instance with parameter ranges
+            base_config: Base EmbeddingConfig for file paths
+            cv_folds: Number of cross-validation folds (default: 3)
+        """
+        self.param_grid = param_grid
+        self.base_config = base_config
+        self.cv_folds = cv_folds
+        self.results: List[GridSearchResult] = []
+        self.results_df: Optional[pd.DataFrame] = None
+        self.best_model: Optional[Word2Vec] = None
+        self.best_params: Optional[Dict] = None
+
+    def train_model(
+        self,
+        tokenized_sentences: List[List[str]],
+        hyperparams: Dict,
+        fold: int = 0
+    ) -> GridSearchResult:
+        """
+        Train a single Word2Vec model with given hyperparameters.
+
+        Args:
+            tokenized_sentences: List of tokenized sentences
+            hyperparams: Dictionary of hyperparameters to use
+            fold: Cross-validation fold number
+
+        Returns:
+            GridSearchResult with trained model and metrics
+        """
+        logger.info(
+            f"Training model (fold {fold}): "
+            f"vector_size={hyperparams['vector_size']}, "
+            f"window={hyperparams['window']}, "
+            f"min_count={hyperparams['min_count']}, "
+            f"epochs={hyperparams['epochs']}"
+        )
+
+        start_time = time.time()
+
+        model = Word2Vec(
+            sentences=tokenized_sentences,
+            vector_size=hyperparams['vector_size'],
+            window=hyperparams['window'],
+            min_count=hyperparams['min_count'],
+            workers=self.param_grid.workers,
+            sg=self.param_grid.sg,
+            epochs=hyperparams['epochs'],
+            sample=self.param_grid.sample,
+        )
+
+        training_time = time.time() - start_time
+
+        # Compute evaluation metrics
+        vocab_size = len(model.wv)
+        avg_vector_norm = np.mean(np.linalg.norm(model.wv.vectors, axis=1))
+
+        logger.info(
+            f"  Completed in {training_time:.2f}s | "
+            f"Vocab: {vocab_size} | "
+            f"Avg vector norm: {avg_vector_norm:.4f}"
+        )
+
+        return GridSearchResult(
+            hyperparams=hyperparams,
+            model=model,
+            vocab_size=vocab_size,
+            avg_vector_norm=avg_vector_norm,
+            training_time=training_time
+        )
+
+    def search(
+        self,
+        tokenized_sentences: List[List[str]]
+    ) -> Tuple[Word2Vec, Dict, pd.DataFrame]:
+        """
+        Execute grid search over all hyperparameter combinations.
+
+        Args:
+            tokenized_sentences: List of tokenized sentences for training
+
+        Returns:
+            Tuple of (best_model, best_params, results_dataframe)
+        """
+        logger.info("=" * 70)
+        logger.info("STAGE 2: Grid Search Hyperparameter Optimization")
+        logger.info("=" * 70)
+
+        combinations = self.param_grid.get_combinations()
+
+        for idx, hyperparams in enumerate(combinations, 1):
+            logger.info(f"\n[{idx}/{len(combinations)}] Testing hyperparameter set")
+
+            try:
+                result = self.train_model(
+                    tokenized_sentences,
+                    hyperparams,
+                    fold=0
+                )
+                self.results.append(result)
+
+            except Exception as e:
+                logger.error(
+                    f"Failed to train model with params {hyperparams}: {e}"
+                )
+                continue
+
+        # Convert results to DataFrame
+        self.results_df = pd.DataFrame([r.to_dict() for r in self.results])
+
+        # Select best model by vocabulary size and average vector norm
+        # Prefer models with larger vocabulary and normalized vectors
+        self.results_df['score'] = (
+            self.results_df['vocab_size'] / self.results_df['vocab_size'].max() * 0.6 +
+            self.results_df['avg_vector_norm'] / self.results_df['avg_vector_norm'].max() * 0.4
+        )
+
+        best_idx = self.results_df['score'].idxmax()
+        best_result = self.results[best_idx]
+
+        self.best_model = best_result.model
+        self.best_params = best_result.hyperparams
+
+        logger.info("\n" + "=" * 70)
+        logger.info("Grid Search Completed")
+        logger.info("=" * 70)
+        logger.info(f"Best hyperparameters: {self.best_params}")
+        logger.info(f"Best score: {self.results_df.loc[best_idx, 'score']:.4f}")
+
+        return self.best_model, self.best_params, self.results_df
+
+    def save_results(self, output_file: str = "gridsearch_results.csv") -> None:
+        """
+        Save grid search results to CSV file.
+
+        Args:
+            output_file: Path to save results CSV
+        """
+        if self.results_df is not None:
+            self.results_df.to_csv(output_file, index=False)
+            logger.info(f"Grid search results saved to: {output_file}")
 
 
 def load_tokenizer(tokenizer_file: str) -> Tokenizer:
@@ -163,7 +382,7 @@ def load_and_prepare_data(
 
 
 # ============================================================================
-# STAGE 2: Model Training
+# STAGE 2: Model Training (Legacy - for single model training)
 # ============================================================================
 
 def train_word2vec_model(
@@ -171,7 +390,7 @@ def train_word2vec_model(
     config: EmbeddingConfig
 ) -> Word2Vec:
     """
-    ETAP 2: Train Word2Vec CBOW model.
+    ETAP 2: Train Word2Vec CBOW model with fixed hyperparameters.
 
     Args:
         tokenized_sentences: List of tokenized sentences
@@ -209,7 +428,8 @@ def train_word2vec_model(
 
 def save_model_artifacts(
     model: Word2Vec,
-    config: EmbeddingConfig
+    config: EmbeddingConfig,
+    suffix: str = ""
 ) -> Dict[str, str]:
     """
     ETAP 3: Export and save model artifacts.
@@ -222,6 +442,7 @@ def save_model_artifacts(
     Args:
         model: Trained Word2Vec model
         config: EmbeddingConfig instance with output file paths
+        suffix: Optional suffix to append to filenames (e.g., "_best")
 
     Returns:
         Dictionary with keys: 'tensor', 'map', 'model' and their file paths
@@ -230,11 +451,21 @@ def save_model_artifacts(
     logger.info("STAGE 3: Exporting and Saving Results")
     logger.info("=" * 70)
 
+    # Add suffix to filenames if provided
+    tensor_file = config.output_tensor_file
+    map_file = config.output_map_file
+    model_file = config.output_model_file
+
+    if suffix:
+        tensor_file = tensor_file.replace(".npy", f"{suffix}.npy")
+        map_file = map_file.replace(".json", f"{suffix}.json")
+        model_file = model_file.replace(".model", f"{suffix}.model")
+
     # 1. Save embedding tensor
     embedding_matrix = np.array(model.wv.vectors, dtype=np.float32)
-    np.save(config.output_tensor_file, embedding_matrix)
+    np.save(tensor_file, embedding_matrix)
     logger.info(
-        f"Embedding matrix saved: {config.output_tensor_file} "
+        f"Embedding matrix saved: {tensor_file} "
         f"(shape: {embedding_matrix.shape})"
     )
 
@@ -243,19 +474,50 @@ def save_model_artifacts(
         token: model.wv.get_index(token)
         for token in model.wv.index_to_key
     }
-    with open(config.output_map_file, "w", encoding="utf-8") as f:
+    with open(map_file, "w", encoding="utf-8") as f:
         json.dump(token_to_index, f, ensure_ascii=False, indent=4)
-    logger.info(f"Token-to-index mapping saved: {config.output_map_file}")
+    logger.info(f"Token-to-index mapping saved: {map_file}")
 
     # 3. Save full model
-    model.save(config.output_model_file)
-    logger.info(f"Full Word2Vec model saved: {config.output_model_file}")
+    model.save(model_file)
+    logger.info(f"Full Word2Vec model saved: {model_file}")
 
     return {
-        'tensor': config.output_tensor_file,
-        'map': config.output_map_file,
-        'model': config.output_model_file,
+        'tensor': tensor_file,
+        'map': map_file,
+        'model': model_file,
     }
+
+
+def save_gridsearch_metadata(
+    gridsearch: GridSearchCV,
+    best_params: Dict,
+    output_dir: str = "."
+) -> None:
+    """
+    Save grid search metadata and results.
+
+    Saves:
+    - Grid search results as CSV
+    - Best hyperparameters as JSON
+
+    Args:
+        gridsearch: GridSearchCV instance with results
+        best_params: Best hyperparameters dictionary
+        output_dir: Directory to save files in
+    """
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # Save grid search results
+    results_file = output_path / "gridsearch_results.csv"
+    gridsearch.save_results(str(results_file))
+
+    # Save best hyperparameters
+    best_params_file = output_path / "best_hyperparameters.json"
+    with open(best_params_file, "w", encoding="utf-8") as f:
+        json.dump(best_params, f, indent=4)
+    logger.info(f"Best hyperparameters saved to: {best_params_file}")
 
 
 # ============================================================================
@@ -404,10 +666,18 @@ def verify_embeddings(
 # Main Pipeline
 # ============================================================================
 
-def main() -> None:
-    """Execute the complete Word2Vec CBOW training pipeline."""
+def main(use_gridsearch: bool = True) -> None:
+    """
+    Execute the complete Word2Vec CBOW training pipeline.
+
+    Args:
+        use_gridsearch: If True, use grid search to optimize hyperparameters.
+                       If False, use fixed hyperparameters from config.
+    """
     logger.info("\n" + "=" * 70)
     logger.info("Word2Vec CBOW Embedding Training Pipeline")
+    if use_gridsearch:
+        logger.info("(with Hyperparameter Grid Search Optimization)")
     logger.info("=" * 70 + "\n")
 
     # Initialize configuration
@@ -418,10 +688,47 @@ def main() -> None:
     tokenized_sentences = load_and_prepare_data(config, tokenizer)
 
     # Stage 2: Train model
-    model = train_word2vec_model(tokenized_sentences, config)
+    if use_gridsearch:
+        # Use grid search to find optimal hyperparameters
+        param_grid = HyperparameterGrid(
+            vector_size=[50, 100, 200],
+            window=[2, 3, 5],
+            min_count=[2, 5, 10],
+            epochs=[10, 20, 30]
+        )
 
-    # Stage 3: Save artifacts
-    saved_files = save_model_artifacts(model, config)
+        gridsearch = GridSearchCV(param_grid, config)
+        model, best_params, results_df = gridsearch.search(tokenized_sentences)
+
+        # Save grid search results
+        save_gridsearch_metadata(gridsearch, best_params, output_dir=".")
+
+        # Display results summary
+        logger.info("\nGrid Search Results Summary:")
+        logger.info(f"Total combinations tested: {len(results_df)}")
+        logger.info(f"\nTop 5 hyperparameter combinations:")
+        top5 = results_df.nlargest(5, 'score')
+        for idx, (_, row) in enumerate(top5.iterrows(), 1):
+            logger.info(
+                f"  {idx}. Score: {row['score']:.4f} | "
+                f"vec_size: {int(row['vector_size'])}, "
+                f"window: {int(row['window'])}, "
+                f"min_count: {int(row['min_count'])}, "
+                f"epochs: {int(row['epochs'])}"
+            )
+
+    else:
+        # Train with fixed hyperparameters from config
+        model = train_word2vec_model(tokenized_sentences, config)
+        best_params = {
+            'vector_size': config.vector_size,
+            'window': config.window,
+            'min_count': config.min_count,
+            'epochs': config.epochs,
+        }
+
+    # Stage 3: Save artifacts with best model
+    saved_files = save_model_artifacts(model, config, suffix="_best")
 
     # Verification
     verify_embeddings(tokenizer, model)
@@ -429,10 +736,11 @@ def main() -> None:
     logger.info("\n" + "=" * 70)
     logger.info("Pipeline completed successfully!")
     logger.info("=" * 70)
+    logger.info(f"Best hyperparameters: {best_params}")
     logger.info(f"Output files:")
     for key, filepath in saved_files.items():
         logger.info(f"  - {key}: {filepath}")
 
 
 if __name__ == "__main__":
-    main()
+    main(use_gridsearch=False)
