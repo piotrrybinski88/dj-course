@@ -13,8 +13,8 @@ from corpora import CORPORA_FILES
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
 # --- KONFIGURACJA ŚCIEŻEK I PARAMETRÓW ---
-MODEL_NAME = 'intfloat/multilingual-e5-small' 
-OUTPUT_EMBEDDINGS_FILE = "sbert_sentence_embeddings.npy"
+MODEL_NAME = 'sdadas/mmlw-roberta-large'
+OUTPUT_EMBEDDINGS_FILE = "sdadas_sentence_embeddings.npy"
 
 files = CORPORA_FILES["ALL"]
 
