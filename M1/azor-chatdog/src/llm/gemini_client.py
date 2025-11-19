@@ -17,15 +17,21 @@ class GeminiChatSessionWrapper:
     Wrapper for Gemini chat session that provides universal dictionary-based history format.
     This ensures compatibility with LlamaClient's history format.
     """
-    
-    def __init__(self, gemini_session):
+
+    def __init__(self, gemini_session, top_k: int = 40, top_p: float = 0.9, temperature: float = 0.7):
         """
         Initialize wrapper with Gemini chat session.
-        
+
         Args:
             gemini_session: The actual Gemini chat session object
+            top_k: Top-k sampling parameter
+            top_p: Top-p (nucleus) sampling parameter
+            temperature: Temperature for randomness control
         """
         self.gemini_session = gemini_session
+        self.top_k = top_k
+        self.top_p = top_p
+        self.temperature = temperature
     
     def send_message(self, text: str) -> Any:
         """
@@ -73,23 +79,29 @@ class GeminiLLMClient:
     Provides a clean interface for chat sessions, token counting, and configuration.
     """
     
-    def __init__(self, model_name: str, api_key: str):
+    def __init__(self, model_name: str, api_key: str, top_k: int = 40, top_p: float = 0.9, temperature: float = 0.7):
         """
         Initialize the Gemini LLM client with explicit parameters.
-        
+
         Args:
             model_name: Model to use (e.g., 'gemini-2.5-flash')
             api_key: Google Gemini API key
-        
+            top_k: Top-k sampling parameter (default: 40)
+            top_p: Top-p (nucleus) sampling parameter (default: 0.9)
+            temperature: Temperature for randomness control (default: 0.7)
+
         Raises:
             ValueError: If api_key is empty or None
         """
         if not api_key:
             raise ValueError("API key cannot be empty or None")
-        
+
         self.model_name = model_name
         self.api_key = api_key
-        
+        self.top_k = top_k
+        self.top_p = top_p
+        self.temperature = temperature
+
         # Initialize the client during construction
         self._client = self._initialize_client()
     
@@ -107,22 +119,25 @@ class GeminiLLMClient:
     def from_environment(cls) -> 'GeminiLLMClient':
         """
         Factory method that creates a GeminiLLMClient instance from environment variables.
-        
+
         Returns:
             GeminiLLMClient instance initialized with environment variables
-            
+
         Raises:
             ValueError: If required environment variables are not set
         """
         load_dotenv()
-    
+
         # Walidacja z Pydantic
         config = GeminiConfig(
             model_name=os.getenv('MODEL_NAME', 'gemini-2.5-flash'),
-            gemini_api_key=os.getenv('GEMINI_API_KEY', '')
+            gemini_api_key=os.getenv('GEMINI_API_KEY', ''),
+            gemini_top_k=int(os.getenv('GEMINI_TOP_K', '40')),
+            gemini_top_p=float(os.getenv('GEMINI_TOP_P', '0.9')),
+            gemini_temperature=float(os.getenv('GEMINI_TEMPERATURE', '0.7'))
         )
-        
-        return cls(model_name=config.model_name, api_key=config.gemini_api_key)
+
+        return cls(model_name=config.model_name, api_key=config.gemini_api_key, top_k=config.gemini_top_k, top_p=config.gemini_top_p, temperature=config.gemini_temperature)
     
     def _initialize_client(self) -> genai.Client:
         """
@@ -176,11 +191,14 @@ class GeminiLLMClient:
             history=gemini_history,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
-                thinking_config=types.ThinkingConfig(thinking_budget=thinking_budget)
+                thinking_config=types.ThinkingConfig(thinking_budget=thinking_budget),
+                top_k=self.top_k,
+                top_p=self.top_p,
+                temperature=self.temperature
             )
         )
-        
-        return GeminiChatSessionWrapper(gemini_session)
+
+        return GeminiChatSessionWrapper(gemini_session, self.top_k, self.top_p, self.temperature)
     
     def count_history_tokens(self, history: List[Dict]) -> int:
         """
