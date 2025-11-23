@@ -6,10 +6,9 @@ from animate import run_tts_animation, console
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-FILE_PATH = "sample-agent.wav"
-OUTPUT_WAV_PATH = "output.wav"
+FILE_PATH = "glos_tomka.wav"
 
-GENERATION_DONE = threading.Event() 
+GENERATION_DONE = threading.Event()
 def generate_file_thread(tts_instance, text, file_path, speaker_wav, language):
     """
     Wątek do asynchronicznego generowania pliku audio TTS.
@@ -25,10 +24,9 @@ def generate_file_thread(tts_instance, text, file_path, speaker_wav, language):
         GENERATION_DONE.set()
 
 texts = [
-    "witaj w szkoleniu DEVELOPER JUTRA! Mówi do Ciebie model XTTS!",
-    "Sąd sądem, a sprawiedliwość musi być po naszej stronie.",
-    "A może by tak rzucić to wszystko i wyjechać w Bieszczady?",
-    "Nie matura, lecz chęć szczera zrobi z ciebie oficera.",
+    "witaj w szkoleniu. Mówi do Ciebie model glosu Tomka!",
+    "Jestm wielkim fanem Techno i Legii. Legia jest najlepszym klubem w polsce",
+    "Bardzo Kocham Dominike i wszyzstkich Polaków, To wielki dzień dla ludzkości ale mały dla człowieka!"
 ]
 
 if __name__ == "__main__":

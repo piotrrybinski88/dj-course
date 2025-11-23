@@ -4,8 +4,10 @@ from commands.session_list import list_sessions_command
 from commands.session_display import display_full_session
 from commands.session_to_pdf import export_session_to_pdf
 from commands.session_remove import remove_session_command
+from commands.audio import handle_audio
 
-VALID_SLASH_COMMANDS = ['/exit', '/quit', '/switch', '/help', '/session', '/pdf']
+
+VALID_SLASH_COMMANDS = ['/exit', '/quit', '/switch', '/help', '/session', '/pdf', '/audio']
 
 def handle_command(user_input: str) -> bool:
     """
@@ -61,7 +63,16 @@ def handle_command(user_input: str) -> bool:
                         display_history_summary(new_session.get_history(), new_session.assistant_name)
         else:
             console.print_error("Błąd: Użycie: /switch <SESSION-ID>")
-            
+
+    elif command == '/audio':
+        current = manager.get_current_session()
+        if not current.get_history():
+            console.print_info("There is no answer from assistant yet!")
+
+        else:
+            last_assistant_response = current.get_history()[-1]["parts"][-1]["text"]
+            handle_audio(last_assistant_response)
+
     # Session subcommands
     elif command == '/session':
         if len(parts) < 2:

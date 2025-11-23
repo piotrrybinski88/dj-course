@@ -11,7 +11,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.filters import completion_is_selected
 
 # --- Configuration ---
-SLASH_COMMANDS = ('/exit', '/quit', '/switch', '/help', '/session')
+SLASH_COMMANDS = ('/exit', '/quit', '/switch', '/help', '/session', '/audio')
 SESSION_SUBCOMMANDS = ['list', 'display', 'pop', 'clear', 'new', 'remove']
 
 
@@ -71,6 +71,7 @@ _commands_completer = NestedCompleter({
     '/quit': None,
     '/help': None,
     '/switch': None,
+    '/audio': None,
     '/session': WordCompleter(SESSION_SUBCOMMANDS, ignore_case=False)
 })
 
